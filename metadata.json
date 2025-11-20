@@ -1,0 +1,5 @@
+{
+  "name": "ワークスケジュール作成ツール",
+  "description": "A smart shift management tool for store managers featuring a drag-and-drop interface and AI-powered staffing advice.",
+  "requestFramePermissions": []
+}
