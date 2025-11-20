@@ -114,6 +114,19 @@ const App: React.FC = () => {
     setStaffList(prev => prev.map(s => s.id === updatedStaff.id ? updatedStaff : s));
   };
 
+  // --- Header Action Handlers ---
+  const handleSettings = () => {
+    alert("設定機能は開発中です。");
+  };
+
+  const handleAutoSchedule = () => {
+    alert("ワーク自動作成機能は開発中です。");
+  };
+
+  const handleStaffList = () => {
+    alert("スタッフ編集機能は開発中です。");
+  };
+
   // --- AI Advice ---
   const handleAiAdvice = async () => {
     setLoadingAi(true);
@@ -130,6 +143,9 @@ const App: React.FC = () => {
         onDateChange={setCurrentDate} 
         onAiAdvice={handleAiAdvice}
         loadingAi={loadingAi}
+        onSettings={handleSettings}
+        onAutoSchedule={handleAutoSchedule}
+        onStaffList={handleStaffList}
       />
       
       {/* Model Shift Pattern (Replaces Calendar) */}
