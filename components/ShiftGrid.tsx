@@ -150,7 +150,7 @@ export const ShiftGrid: React.FC<ShiftGridProps> = ({ shifts, staffList, onDrop,
       {/* Grid Body */}
       <div className="min-w-[1400px]">
         {POSITIONS.map((position) => (
-          <div key={position} className="grid grid-cols-[7rem_3rem_repeat(36,_minmax(0,_1fr))] border-b border-gray-200 relative h-16">
+          <div key={position} className="grid grid-cols-[7rem_3rem_repeat(36,_minmax(0,_1fr))] border-b border-gray-200 relative h-12">
             
             {/* Row Header */}
             <div className="p-2 font-medium text-gray-700 bg-white sticky left-0 z-20 border-r border-gray-200 flex items-center shadow-[4px_0_5px_-2px_rgba(0,0,0,0.05)]">

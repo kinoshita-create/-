@@ -36,3 +36,21 @@ export interface DragItem {
   fromHour?: number;
   fromPosition?: PositionType;
 }
+
+// Model Shift Types
+export interface ModelShift {
+  id: string;
+  rowId: string;
+  start: number;
+  end: number;
+}
+
+export interface ModelPattern {
+  id: string;
+  name: string;
+  shifts: ModelShift[];
+  color?: string;
+}
+
+// Date (YYYY-MM-DD) -> PatternID mapping
+export type PatternSchedule = Record<string, string>;

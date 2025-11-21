@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { HOURS } from '../constants';
+import { ModelShift } from '../types';
 
-interface ModelShift {
-  id: string;
-  rowId: string;
-  start: number;
-  end: number;
+interface ModelShiftPatternProps {
+  shifts: ModelShift[];
+  onChange?: (shifts: ModelShift[]) => void;
+  readOnly?: boolean;
+  patternColor?: string;
 }
 
 const ROWS = [
@@ -19,8 +20,12 @@ const ROWS = [
   { id: 'k4', label: 'キッチン④' },
 ];
 
-export const ModelShiftPattern: React.FC = () => {
-  const [shifts, setShifts] = useState<ModelShift[]>([]);
+export const ModelShiftPattern: React.FC<ModelShiftPatternProps> = ({ 
+    shifts, 
+    onChange, 
+    readOnly = false,
+    patternColor = 'bg-slate-400'
+}) => {
   const [interaction, setInteraction] = useState<{
     type: 'create' | 'resize' | 'move';
     shiftId: string;
@@ -28,7 +33,7 @@ export const ModelShiftPattern: React.FC = () => {
     initialEnd: number;
     baseClientX: number;
     edge?: 'start' | 'end';
-    anchorTime?: number; // Used for creation to know the origin point
+    anchorTime?: number;
   } | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
@@ -49,12 +54,10 @@ export const ModelShiftPattern: React.FC = () => {
   // --- Interaction Handlers ---
 
   const handleMouseDown = (e: React.MouseEvent, rowId: string, time: number, shift?: ModelShift, edge?: 'start' | 'end') => {
-    // Only left click
+    if (readOnly || !onChange) return;
     if (e.button !== 0) return;
     
     e.preventDefault();
-    // Do NOT stop propagation here if it's a create action on the grid, 
-    // but strictly strictly speaking we handle it on the specific elements.
     
     if (shift && edge) {
       // Resize existing
@@ -79,10 +82,12 @@ export const ModelShiftPattern: React.FC = () => {
       });
     } else {
       // Create new
-      // We treat the click time as the "anchor"
       const newId = Math.random().toString(36).substr(2, 9);
       const newShift = { id: newId, rowId, start: time, end: time + 0.5 };
-      setShifts(prev => [...prev, newShift]);
+      
+      // Immediate update for visual feedback
+      onChange([...shifts, newShift]);
+
       setInteraction({
         type: 'create',
         shiftId: newId,
@@ -95,12 +100,15 @@ export const ModelShiftPattern: React.FC = () => {
   };
 
   const handleRemove = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Critical: prevent triggering move/drag
+    if (readOnly || !onChange) return;
+    e.stopPropagation();
     e.preventDefault();
-    setShifts(prev => prev.filter(s => s.id !== id));
+    onChange(shifts.filter(s => s.id !== id));
   };
 
   useEffect(() => {
+    if (readOnly || !onChange) return;
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!interaction || !gridRef.current) return;
 
@@ -115,10 +123,9 @@ export const ModelShiftPattern: React.FC = () => {
       const diffHours = Math.round(diffPixels / slotWidth * 2) / 2; // Snap to 0.5
 
       if (interaction.type === 'create' && interaction.anchorTime !== undefined) {
-        setShifts(prev => prev.map(s => {
+        const updatedShifts = shifts.map(s => {
           if (s.id !== interaction.shiftId) return s;
           
-          // Determine new start/end based on anchor and current drag position
           const draggedTime = interaction.anchorTime! + diffHours + (diffHours >= 0 ? 0.5 : 0);
           
           let newStart = Math.min(interaction.anchorTime!, draggedTime);
@@ -130,15 +137,15 @@ export const ModelShiftPattern: React.FC = () => {
              else newEnd = newStart + 0.5;
           }
           
-          // Clamp
           newStart = Math.max(6, newStart);
           newEnd = Math.min(24, newEnd);
 
           return { ...s, start: newStart, end: newEnd };
-        }));
+        });
+        onChange(updatedShifts);
 
       } else if (interaction.type === 'resize') {
-        setShifts(prev => prev.map(s => {
+        const updatedShifts = shifts.map(s => {
           if (s.id !== interaction.shiftId) return s;
 
           let newStart = interaction.initialStart;
@@ -151,10 +158,11 @@ export const ModelShiftPattern: React.FC = () => {
           }
 
           return { ...s, start: newStart, end: newEnd };
-        }));
+        });
+        onChange(updatedShifts);
 
       } else if (interaction.type === 'move') {
-        setShifts(prev => prev.map(s => {
+        const updatedShifts = shifts.map(s => {
           if (s.id !== interaction.shiftId) return s;
 
           const duration = interaction.initialEnd - interaction.initialStart;
@@ -165,7 +173,8 @@ export const ModelShiftPattern: React.FC = () => {
           const newEnd = newStart + duration;
 
           return { ...s, start: newStart, end: newEnd };
-        }));
+        });
+        onChange(updatedShifts);
       }
     };
 
@@ -182,22 +191,22 @@ export const ModelShiftPattern: React.FC = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [interaction]);
+  }, [interaction, shifts, onChange, readOnly]);
 
 
   return (
-    <div className="flex-none bg-gray-100 border-b border-gray-300 overflow-x-auto select-none relative" ref={gridRef}>
+    <div className={`flex-none border-b border-gray-300 overflow-x-auto select-none relative ${readOnly ? 'bg-gray-50' : 'bg-white'}`} ref={gridRef}>
       <div className="min-w-[1400px]">
         {/* Header */}
-        <div className="grid grid-cols-[7rem_3rem_repeat(36,_minmax(0,_1fr))] border-b border-gray-300 bg-gray-200 text-gray-500 text-[10px]">
-          <div className="p-1 text-center border-r border-gray-300 sticky left-0 z-20 bg-gray-200 font-medium flex items-center justify-center">
+        <div className={`grid grid-cols-[7rem_3rem_repeat(36,_minmax(0,_1fr))] border-b border-gray-300 text-[10px] ${readOnly ? 'bg-gray-100 text-gray-400' : 'bg-gray-200 text-gray-500'}`}>
+          <div className={`p-1 text-center border-r border-gray-300 sticky left-0 z-20 font-medium flex items-center justify-center ${readOnly ? 'bg-gray-100' : 'bg-gray-200'}`}>
             モデル
           </div>
-          <div className="p-1 text-center border-r border-gray-300 bg-gray-200 font-medium flex items-center justify-center sticky left-28 z-20">
+          <div className={`p-1 text-center border-r border-gray-300 font-medium flex items-center justify-center sticky left-28 z-20 ${readOnly ? 'bg-gray-100' : 'bg-gray-200'}`}>
             時間
           </div>
           {HOURS.map((hour) => (
-            <div key={hour} className="col-span-2 text-center border-r border-gray-300 py-1 font-medium text-gray-600">
+            <div key={hour} className="col-span-2 text-center border-r border-gray-300 py-1 font-medium">
               {hour}
             </div>
           ))}
@@ -207,15 +216,15 @@ export const ModelShiftPattern: React.FC = () => {
         {ROWS.map((row, idx) => (
           <div 
             key={row.id} 
-            className="grid grid-cols-[7rem_3rem_repeat(36,_minmax(0,_1fr))] border-b border-gray-200 h-8 bg-white relative group/row"
+            className={`grid grid-cols-[7rem_3rem_repeat(36,_minmax(0,_1fr))] border-b border-gray-200 h-8 relative group/row ${readOnly ? 'bg-gray-50' : 'bg-white'}`}
           >
             {/* Row Label */}
-            <div className="sticky left-0 z-20 bg-gray-50 border-r border-gray-300 flex items-center justify-center px-2 text-[10px] font-bold text-gray-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+            <div className={`sticky left-0 z-20 border-r border-gray-300 flex items-center justify-center px-2 text-[10px] font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${readOnly ? 'bg-gray-100 text-gray-400' : 'bg-gray-50 text-gray-600'}`}>
               {row.label}
             </div>
 
              {/* Duration Total */}
-             <div className="sticky left-28 z-20 bg-white border-r border-gray-300 flex items-center justify-center px-1 text-[10px] font-mono text-blue-600 font-medium shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+             <div className={`sticky left-28 z-20 border-r border-gray-300 flex items-center justify-center px-1 text-[10px] font-mono font-medium shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${readOnly ? 'bg-gray-50 text-gray-400' : 'bg-white text-blue-600'}`}>
               {getRowTotal(row.id).toFixed(1)}h
             </div>
 
@@ -225,12 +234,12 @@ export const ModelShiftPattern: React.FC = () => {
                 {/* :00 slot */}
                 <div 
                   onMouseDown={(e) => handleMouseDown(e, row.id, hour)}
-                  className="border-r border-gray-100 border-dotted hover:bg-blue-50 cursor-crosshair"
+                  className={`border-r border-dotted ${readOnly ? 'border-gray-200 cursor-default' : 'border-gray-100 hover:bg-blue-50 cursor-crosshair'}`}
                 ></div>
                 {/* :30 slot */}
                 <div 
                   onMouseDown={(e) => handleMouseDown(e, row.id, hour + 0.5)}
-                  className="border-r border-gray-300 hover:bg-blue-50 cursor-crosshair"
+                  className={`border-r ${readOnly ? 'border-gray-200 cursor-default' : 'border-gray-300 hover:bg-blue-50 cursor-crosshair'}`}
                 ></div>
               </React.Fragment>
             ))}
@@ -243,34 +252,49 @@ export const ModelShiftPattern: React.FC = () => {
                   const colStart = Math.round((shift.start - 6) * 2) + 1;
                   const colSpan = Math.round((shift.end - shift.start) * 2);
 
+                  // Determine background classes
+                  // If readOnly is true, we might want to fade it out, but still show color
+                  // If interactive, show hover effect.
+                  // Since we use Tailwind arbitrary classes, we can rely on CSS filters for hover brightness
+                  
+                  const bgClass = patternColor;
+
                   return (
                     <div
                       key={shift.id}
                       style={{ gridColumn: `${colStart} / span ${colSpan}` }}
-                      className="relative h-full p-1 pointer-events-auto z-10 group"
+                      className={`relative h-full p-1 pointer-events-auto z-10 group ${readOnly ? 'opacity-70' : ''}`}
                     >
                        <div 
-                         className="w-full h-full rounded bg-slate-400 hover:bg-slate-500 shadow-sm text-white text-[10px] flex items-center justify-center cursor-grab active:cursor-grabbing relative"
+                         className={`w-full h-full rounded shadow-sm text-white text-[10px] flex items-center justify-center relative transition-all
+                            ${bgClass}
+                            ${readOnly ? 'cursor-default' : 'hover:brightness-90 cursor-grab active:cursor-grabbing'}`}
                          onMouseDown={(e) => handleMouseDown(e, row.id, 0, shift)}
                        >
-                          {/* Delete Button */}
-                          <button 
-                              onMouseDown={(e) => e.stopPropagation()} // Stop dragging from starting
-                              onClick={(e) => handleRemove(e, shift.id)}
-                              className="absolute -top-2 -right-2 bg-gray-600 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 z-20 cursor-pointer"
-                          >
-                              ×
-                          </button>
+                          {/* Delete Button (Only in Edit Mode) */}
+                          {!readOnly && (
+                            <button 
+                                onMouseDown={(e) => e.stopPropagation()} 
+                                onClick={(e) => handleRemove(e, shift.id)}
+                                className="absolute -top-2 -right-2 bg-gray-600 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 z-20 cursor-pointer"
+                            >
+                                ×
+                            </button>
+                          )}
 
-                          {/* Resize Handles */}
-                          <div 
-                            className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize hover:bg-white/20 rounded-l"
-                            onMouseDown={(e) => handleMouseDown(e, row.id, 0, shift, 'start')}
-                          />
-                          <div 
-                            className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize hover:bg-white/20 rounded-r"
-                            onMouseDown={(e) => handleMouseDown(e, row.id, 0, shift, 'end')}
-                          />
+                          {/* Resize Handles (Only in Edit Mode) */}
+                          {!readOnly && (
+                            <>
+                              <div 
+                                className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize hover:bg-white/20 rounded-l"
+                                onMouseDown={(e) => handleMouseDown(e, row.id, 0, shift, 'start')}
+                              />
+                              <div 
+                                className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize hover:bg-white/20 rounded-r"
+                                onMouseDown={(e) => handleMouseDown(e, row.id, 0, shift, 'end')}
+                              />
+                            </>
+                          )}
                        </div>
                     </div>
                   );
@@ -280,15 +304,14 @@ export const ModelShiftPattern: React.FC = () => {
         ))}
 
         {/* Total Row */}
-        <div className="grid grid-cols-[7rem_3rem_repeat(36,_minmax(0,_1fr))] border-b border-gray-300 h-8 bg-gray-100">
-            <div className="sticky left-0 z-20 bg-gray-200 border-r border-gray-300 flex items-center justify-center px-2 text-[10px] font-bold text-gray-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+        <div className={`grid grid-cols-[7rem_3rem_repeat(36,_minmax(0,_1fr))] border-b border-gray-300 h-8 ${readOnly ? 'bg-gray-50' : 'bg-gray-100'}`}>
+            <div className={`sticky left-0 z-20 border-r border-gray-300 flex items-center justify-center px-2 text-[10px] font-bold shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${readOnly ? 'bg-gray-100 text-gray-400' : 'bg-gray-200 text-gray-700'}`}>
                 合計
             </div>
-            <div className="sticky left-28 z-20 bg-gray-100 border-r border-gray-300 flex items-center justify-center px-1 text-[10px] font-mono text-blue-700 font-bold border-t-2 border-blue-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+            <div className={`sticky left-28 z-20 border-r border-gray-300 flex items-center justify-center px-1 text-[10px] font-mono font-bold border-t-2 border-blue-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${readOnly ? 'bg-gray-50 text-gray-500' : 'bg-gray-100 text-blue-700'}`}>
                 {getTotalAll().toFixed(1)}h
             </div>
-            {/* Spacer for the rest of the grid */}
-            <div className="col-span-[36] bg-gray-50"></div>
+            <div className="col-span-[36] bg-transparent"></div>
         </div>
       </div>
 
